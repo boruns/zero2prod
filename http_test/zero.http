@@ -1,0 +1,4 @@
+@domain = http://localhost:8081
+
+
+GET {{domain}}/health_check
