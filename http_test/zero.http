@@ -1,4 +1,4 @@
-@domain = http://localhost:8000
+@domain = http://localhost:8081
 
 
 GET {{domain}}/health_check
@@ -8,4 +8,4 @@ GET {{domain}}/health_check
 POST {{domain}}/subscriptions
 Content-Type: application/x-www-form-urlencoded
 
-name=test1&email=test1@test.com
+name=test1&email=test432232@test.com

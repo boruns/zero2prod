@@ -1,0 +1,10 @@
+application:
+  host: 127.0.0.1
+  port: 8081
+database:
+  username: postgres
+  password: postgres
+  port: 5432
+  host: localhost
+  database_name: newsletter
+  require_ssl: false

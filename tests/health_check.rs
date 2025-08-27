@@ -1,4 +1,5 @@
 use once_cell::sync::Lazy;
+use sqlx::Row;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
 use zero2prod::{
@@ -51,12 +52,14 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
         .await
         .expect("Failed to execute request.");
     assert_eq!(200, response.status().as_u16());
-    let saved = sqlx::query!("SELECT email, name FROM subscriptions order by subscribed_at DESC",)
+    let sql = "SELECT email, name FROM subscriptions";
+    let row: (String, String) = sqlx::query(sql)
+        .map(|row: sqlx::postgres::PgRow| (row.get(0), row.get(1)))
         .fetch_one(&app.db_pool)
         .await
         .expect("Failed to fetch saved subscription.");
-    assert_eq!(saved.email, "ezrealchen@gmail.com");
-    assert_eq!(saved.name, "ezreal chen");
+    assert_eq!(row.0, "ezrealchen@gmail.com");
+    assert_eq!(row.1, "ezreal chen");
 }
 
 #[tokio::test]
@@ -103,7 +106,7 @@ async fn spawn_app() -> TestApp {
 }
 
 pub async fn configuration_database(config: &DatabaseSettings) -> PgPool {
-    let mut connection = PgConnection::connect(&config.connection_string_without_db())
+    let mut connection = PgConnection::connect_with(&config.without_db())
         .await
         .expect("Failed to connect to Postgres");
     connection
@@ -111,7 +114,7 @@ pub async fn configuration_database(config: &DatabaseSettings) -> PgPool {
         .await
         .expect("Failed to create database.");
 
-    let connection_pool = PgPool::connect(&config.connection_string())
+    let connection_pool = PgPool::connect_with(config.with_db())
         .await
         .expect("Failed to connect to Postgres");
     sqlx::migrate!("./migrations")
