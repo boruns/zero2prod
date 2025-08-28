@@ -8,4 +8,4 @@ GET {{domain}}/health_check
 POST {{domain}}/subscriptions
 Content-Type: application/x-www-form-urlencoded
 
-name=test1&email=test432232@test.com
+name=abc&email=test432232@test.com
