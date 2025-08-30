@@ -9,7 +9,10 @@ path = "src/lib.rs"
 [dependencies]
 actix-web = "4.11.0"
 tokio = { version = "1.47.1", features = ["macros", "rt-multi-thread"] }
-reqwest = "0.12.23"
+reqwest = { version = "0.12.23", features = [
+    "json",
+    "rustls-tls",
+], default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 sqlx = { version = "0.8.6", features = [
     "runtime-tokio-rustls",
@@ -34,8 +37,10 @@ secrecy = { version = "0.10.3", features = ["serde"] }
 tracing-actix-web = "0.7.19"
 serde-aux = "4.7.0"
 unicode-segmentation = "1.11.0"
-claim = "0.4.0"
+claim = "0.5.0"
 validator = "0.20.0"
 
 [dev-dependencies]
-fake = "3.1.0"
+fake = "4.4.0"
+wiremock = "0.6.5"
+serde_json = "1.0.143"

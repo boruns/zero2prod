@@ -8,3 +8,8 @@ database:
   host: localhost
   database_name: newsletter
   require_ssl: false
+email_client:
+  base_url: 'https://api.postmarkapp.com'
+  sender_email: 'ezreal_rao@zyinfo.tech'
+  authorization_token: '31cc22d1-9318-4369-830c-aeb41b48f16f'
+  timeout_milliseconds: 10000

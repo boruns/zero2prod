@@ -1,4 +1,6 @@
-#[derive(Debug)]
+use std::fmt::Display;
+
+#[derive(Debug, serde::Deserialize)]
 pub struct SubscriberEmail(String);
 
 impl SubscriberEmail {
@@ -14,6 +16,12 @@ impl SubscriberEmail {
 impl AsRef<String> for SubscriberEmail {
     fn as_ref(&self) -> &String {
         &self.0
+    }
+}
+
+impl Display for SubscriberEmail {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
     }
 }
 

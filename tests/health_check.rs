@@ -91,13 +91,25 @@ async fn subscribe_returns_a_400_when_fields_are_present_but_invalid() {
 async fn spawn_app() -> TestApp {
     Lazy::force(&TRACING);
 
-    let mut configuration = get_configuration().expect("Failed to read configuration");
-    configuration.database.database_name = Uuid::new_v4().to_string();
-    let db_pool = configuration_database(&configuration.database).await;
+    let mut setting = get_configuration().expect("Failed to read configuration");
+    setting.database.database_name = Uuid::new_v4().to_string();
+    let db_pool = configuration_database(&setting.database).await;
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
     let port = listener.local_addr().unwrap().port();
-    let server =
-        zero2prod::startup::run(listener, db_pool.clone()).expect("Failed to bind address");
+    let sender_email = setting
+        .email_client
+        .sender()
+        .expect("Failed to parse sender email");
+    let timeout = setting.email_client.timeout();
+    let email_client = zero2prod::email_client::EmailClient::new(
+        setting.email_client.base_url,
+        sender_email,
+        setting.email_client.authorization_token,
+        timeout,
+    );
+
+    let server = zero2prod::startup::run(listener, db_pool.clone(), email_client)
+        .expect("Failed to bind address");
     let _ = tokio::spawn(server);
     TestApp {
         address: format!("http://127.0.0.1:{}", port),
