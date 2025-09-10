@@ -16,7 +16,7 @@ docker run \
     -d postgres \
     postgres -N 1000
 
-export PGPASSWORD=${DB_PASSWORD}
+# export PGPASSWORD=${DB_PASSWORD}
 
 # until psql -h "localhost" -U "${DB_USER}" -p "${DB_PORT}" -d "postgres" -c '\q'; do
 #   >&2 echo "Postgres is unavailable - sleeping"

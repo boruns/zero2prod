@@ -1,4 +1,4 @@
-use secrecy::{ExposeSecret, SecretBox};
+use secrecy::ExposeSecret;
 
 use crate::domain::SubscriberEmail;
 
@@ -18,14 +18,14 @@ pub struct EmailClient {
     sender: SubscriberEmail,
     http_client: reqwest::Client,
     base_url: String,
-    authorization_token: SecretBox<String>,
+    authorization_token: secrecy::SecretString,
 }
 
 impl EmailClient {
     pub fn new(
         base_url: String,
         sender: SubscriberEmail,
-        authorization_token: SecretBox<String>,
+        authorization_token: secrecy::SecretString,
         timeout: std::time::Duration,
     ) -> Self {
         let http_client = reqwest::Client::builder().timeout(timeout).build().unwrap();
@@ -77,6 +77,7 @@ mod tests {
             lorem::en::{Paragraph, Sentence},
         },
     };
+    use secrecy::SecretBox;
     use wiremock::{
         Mock, MockServer, Request, ResponseTemplate,
         matchers::{any, header, header_exists, method, path},
@@ -115,7 +116,7 @@ mod tests {
         EmailClient::new(
             base_url,
             email(),
-            SecretBox::new(Faker.fake()),
+            SecretBox::new(Faker.fake::<String>().into()),
             std::time::Duration::from_secs(10),
         )
     }
