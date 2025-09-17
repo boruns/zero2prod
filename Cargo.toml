@@ -39,6 +39,7 @@ serde-aux = "4.7.0"
 unicode-segmentation = "1.11.0"
 claim = "0.5.0"
 validator = "0.20.0"
+linkify = "0.10.0"
 
 [dev-dependencies]
 fake = "4.4.0"
