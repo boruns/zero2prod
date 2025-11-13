@@ -103,16 +103,8 @@ async fn subscribe_sends_confirmation_email_with_a_link() {
         .mount(&app.email_server)
         .await;
     app.post_subscriptions(body.into()).await;
-    let email_request = &app.email_server.received_requests().await.unwrap()[0];
-    let body: serde_json::Value = serde_json::from_slice(&email_request.body).unwrap();
 
-    let get_link = |s: &str| {
-        let links: Vec<_> = linkify::LinkFinder::new()
-            .links(s)
-            .filter(|l| *l.kind() == linkify::LinkKind::Url)
-            .collect();
-        assert_eq!(links.len(), 1);
-        links[0].as_str().to_owned()
-    };
-    let _confirmation_links = get_link(&body["HtmlBody"].as_str().unwrap());
+    let eamil_request = &app.email_server.received_requests().await.unwrap()[0];
+    let confirmation_links = app.get_confirmation_links(eamil_request);
+    assert_eq!(confirmation_links.html, confirmation_links.plain_text);
 }
