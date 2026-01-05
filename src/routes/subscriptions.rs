@@ -1,3 +1,4 @@
+use crate::routes::error_chain_fmt;
 use crate::{
     domain::{NewSubscriber, SubscriberEmail, SubscriberName},
     email_client::EmailClient,
@@ -9,42 +10,6 @@ use chrono::Utc;
 use rand::{Rng, distr::Alphanumeric};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
-
-fn error_chain_fmt(
-    e: &impl std::error::Error,
-    f: &mut std::fmt::Formatter<'_>,
-) -> std::fmt::Result {
-    writeln!(f, "{}\n", e)?;
-    let mut current = e.source();
-    while let Some(cause) = current {
-        writeln!(f, "Caused by:\n\t{}", cause)?;
-        current = cause.source();
-    }
-    Ok(())
-}
-
-// pub struct StoreTokenError(sqlx::Error);
-// impl std::fmt::Display for StoreTokenError {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         write!(
-//             f,
-//             "A database error was encounterd while \
-//             trying to store a subscription token"
-//         )
-//     }
-// }
-
-// impl std::fmt::Debug for StoreTokenError {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         error_chain_fmt(self, f)
-//     }
-// }
-
-// impl std::error::Error for StoreTokenError {
-//     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-//         Some(&self.0)
-//     }
-// }
 
 #[derive(thiserror::Error)]
 pub enum SubscribeError {
@@ -160,7 +125,7 @@ pub async fn send_confirmation_email(
         confirmation_link
     );
     email_client
-        .send_email(new_subscriber.email, "Welcome!", &html_body, &plain_body)
+        .send_email(&new_subscriber.email, "Welcome!", &html_body, &plain_body)
         .await
 }
 
