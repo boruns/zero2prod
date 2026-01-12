@@ -1,3 +1,7 @@
+use argon2::{
+    Argon2,
+    password_hash::{SaltString, rand_core::OsRng},
+};
 use once_cell::sync::Lazy;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
@@ -31,6 +35,7 @@ pub struct TestApp {
     pub db_pool: PgPool,
     pub email_server: MockServer,
     pub port: u16,
+    pub test_user: TestUser,
 }
 
 impl TestApp {
@@ -67,10 +72,46 @@ impl TestApp {
         reqwest::Client::new()
             .post(&format!("{}/newsletters", &self.address))
             .header("Content-Type", "application/json")
+            .basic_auth(&self.test_user.username, Some(&self.test_user.password))
             .json(&body)
             .send()
             .await
             .expect("Failed to execute request.")
+    }
+}
+
+pub struct TestUser {
+    pub user_id: Uuid,
+    pub username: String,
+    pub password: String,
+}
+
+impl TestUser {
+    pub fn generate() -> Self {
+        Self {
+            user_id: Uuid::new_v4(),
+            username: Uuid::new_v4().to_string(),
+            password: Uuid::new_v4().to_string(),
+        }
+    }
+
+    pub async fn store(&self, pool: &PgPool) {
+        let salt = SaltString::generate(&mut OsRng);
+        let password_hash = argon2::PasswordHasher::hash_password(
+            &Argon2::default(),
+            self.password.as_bytes(),
+            salt.as_salt(),
+        )
+        .expect("Failed to hash password")
+        .to_string();
+
+        sqlx::query("INSERT INTO users (user_id, username, password_hash) VALUES ($1, $2, $3)")
+            .bind(&self.user_id)
+            .bind(&self.username)
+            .bind(password_hash)
+            .execute(pool)
+            .await
+            .expect("Failed to create user");
     }
 }
 
@@ -93,12 +134,15 @@ pub async fn spawn_app() -> TestApp {
     let _ = tokio::spawn(application.run_until_stopped());
     let address = format!("http://127.0.0.1:{}", port);
 
-    TestApp {
+    let app = TestApp {
         address: address,
         db_pool: get_connection_pool(&configuration.database),
         email_server: email_server,
         port: port,
-    }
+        test_user: TestUser::generate(),
+    };
+    app.test_user.store(&app.db_pool).await;
+    app
 }
 
 async fn configuration_database(config: &DatabaseSettings) -> PgPool {

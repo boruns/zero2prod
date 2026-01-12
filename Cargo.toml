@@ -43,6 +43,8 @@ linkify = "0.10.0"
 rand = { version = "0.9", features = ["std_rng"] }
 thiserror = "2.0.17"
 anyhow = "1.0.51"
+base64 = "0.13.0"
+argon2 = { version = "0.5", features = ["std"] }
 
 [dev-dependencies]
 fake = "4.4.0"
