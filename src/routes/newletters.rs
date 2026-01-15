@@ -1,6 +1,8 @@
 use crate::{
-    domain::SubscriberEmail, email_client::EmailClient, routes::error_chain_fmt,
-    telemetry::spawn_blocking_with_tracing,
+    authentication::{AuthError, Credentials, validate_credentials},
+    domain::SubscriberEmail,
+    email_client::EmailClient,
+    routes::error_chain_fmt,
 };
 use actix_web::{
     HttpRequest, HttpResponse, ResponseError,
@@ -8,8 +10,7 @@ use actix_web::{
     web,
 };
 use anyhow::{Context, anyhow};
-use argon2::{Argon2, PasswordHash, PasswordVerifier};
-use secrecy::{ExposeSecret, SecretBox};
+use secrecy::SecretBox;
 use sqlx::{PgPool, Row};
 
 #[derive(serde::Deserialize)]
@@ -73,7 +74,12 @@ pub async fn publish_newsletter(
     let credentials = basic_authentication(request.headers()).map_err(PublishError::AuthError)?;
     tracing::Span::current().record("username", &tracing::field::display(&credentials.username));
 
-    let user_id = validate_credentials(credentials, &pool).await?;
+    let user_id = validate_credentials(credentials, &pool)
+        .await
+        .map_err(|error| match error {
+            AuthError::InvalidCredentials(_) => PublishError::AuthError(error.into()),
+            AuthError::UnexceptedError(_) => PublishError::UnexpectedError(error.into()),
+        })?;
     tracing::Span::current().record("user_id", &tracing::field::display(&user_id));
 
     let subscribers = get_confirmed_subscribers(&pool).await?;
@@ -100,9 +106,25 @@ pub async fn publish_newsletter(
     Ok(HttpResponse::Ok().finish())
 }
 
-struct Credentials {
-    username: String,
-    password: SecretBox<String>,
+struct ConfirmedSubscriber {
+    pub email: SubscriberEmail,
+}
+
+#[tracing::instrument(skip(pool), name = "Get confirmed subscribers")]
+async fn get_confirmed_subscribers(
+    pool: &PgPool,
+) -> Result<Vec<Result<ConfirmedSubscriber, anyhow::Error>>, anyhow::Error> {
+    let confirmed_subscribers =
+        sqlx::query("SELECT email FROM subscriptions WHERE status = 'confirmed'")
+            .fetch_all(pool)
+            .await?
+            .into_iter()
+            .map(|row| match SubscriberEmail::parse(row.get(0)) {
+                Ok(email) => Ok(ConfirmedSubscriber { email }),
+                Err(error) => Err(anyhow!(error)),
+            })
+            .collect();
+    Ok(confirmed_subscribers)
 }
 
 fn basic_authentication(headers: &HeaderMap) -> Result<Credentials, anyhow::Error> {
@@ -126,98 +148,4 @@ fn basic_authentication(headers: &HeaderMap) -> Result<Credentials, anyhow::Erro
         username: username.to_string(),
         password: SecretBox::new(Box::new(password.to_string())),
     })
-}
-
-struct ConfirmedSubscriber {
-    pub email: SubscriberEmail,
-}
-
-#[tracing::instrument(skip(pool), name = "Get confirmed subscribers")]
-async fn get_confirmed_subscribers(
-    pool: &PgPool,
-) -> Result<Vec<Result<ConfirmedSubscriber, anyhow::Error>>, anyhow::Error> {
-    let confirmed_subscribers =
-        sqlx::query("SELECT email FROM subscriptions WHERE status = 'confirmed'")
-            .fetch_all(pool)
-            .await?
-            .into_iter()
-            .map(|row| match SubscriberEmail::parse(row.get(0)) {
-                Ok(email) => Ok(ConfirmedSubscriber { email }),
-                Err(error) => Err(anyhow!(error)),
-            })
-            .collect();
-    Ok(confirmed_subscribers)
-}
-
-#[tracing::instrument(skip(credentials, pool), name = "Validate credentials")]
-async fn validate_credentials(
-    credentials: Credentials,
-    pool: &PgPool,
-) -> Result<uuid::Uuid, PublishError> {
-    let (user_id, store_hash) = get_stored_credentials(&credentials.username, pool)
-        .await
-        .map_err(PublishError::AuthError)?
-        .ok_or_else(|| PublishError::AuthError(anyhow::anyhow!("Invalid credentials.")))?;
-
-    // 阻塞任务
-    // 假设 verify_password_hash 返回了 PublishError::AuthError
-    let _ = spawn_blocking_with_tracing(move || {
-        // verify_password_hash 内部验证失败，返回 PublishError::AuthError
-        verify_password_hash(store_hash, credentials.password) // 返回 Err(PublishError::AuthError(...))
-    })
-    .await // 现在得到 Err(PublishError::AuthError(...))
-    .context("Failed to span blocking task") // 这里对 Err 添加上下文
-    .map_err(PublishError::UnexpectedError)??;
-
-    Ok(user_id)
-}
-
-#[tracing::instrument(skip(username, pool), name = "Get stored credentials")]
-async fn get_stored_credentials(
-    username: &str,
-    pool: &PgPool,
-) -> Result<Option<(uuid::Uuid, SecretBox<String>)>, anyhow::Error> {
-    let row: Option<(uuid::Uuid, String)> =
-        sqlx::query_as("SELECT user_id, password_hash FROM users WHERE username = $1")
-            .bind(username)
-            .fetch_optional(pool)
-            .await
-            .context("Failed to perform a query to retrieve stored credentials.")?;
-    let row = match row {
-        Some(row) => (row.0, SecretBox::new(Box::new(row.1))),
-        None => {
-            return Err(anyhow::anyhow!("User credentials not found."));
-        }
-    };
-    Ok(Some(row))
-}
-
-#[tracing::instrument(skip(expected_password_hash, password), name = "Verify password hash")]
-fn verify_password_hash(
-    expected_password_hash: SecretBox<String>,
-    password: SecretBox<String>,
-) -> Result<(), PublishError> {
-    let expected_password_hash = PasswordHash::new(expected_password_hash.expose_secret())
-        .context("Failed to parse hash in PHC string format.")
-        .map_err(PublishError::UnexpectedError)?;
-    Argon2::default()
-        .verify_password(password.expose_secret().as_bytes(), &expected_password_hash)
-        .context("Invalid password")
-        .map_err(PublishError::AuthError)?;
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn verify_password_hash_failed_with_invalid_password() {
-        let excepted_password_hash = SecretBox::new(Box::new(
-            "$argon2id$v=19$m=19456,t=2,p=1$zATKil531Eh/DaM1sc9nwQ$1of3JB5MUB9X9B2uzLzxo43UInIydpirdS4r/TFB9xQ".to_string(),
-        ));
-        let password = SecretBox::new(Box::new("15385a99-8270-4e16-a223-04f4ca78469a".to_string()));
-        let result = verify_password_hash(excepted_password_hash, password);
-        assert!(result.is_err());
-    }
 }

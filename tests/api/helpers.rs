@@ -1,5 +1,5 @@
 use argon2::{
-    Argon2,
+    Algorithm, Argon2, Params, Version,
     password_hash::{SaltString, rand_core::OsRng},
 };
 use once_cell::sync::Lazy;
@@ -98,7 +98,11 @@ impl TestUser {
     pub async fn store(&self, pool: &PgPool) {
         let salt = SaltString::generate(&mut OsRng);
         let password_hash = argon2::PasswordHasher::hash_password(
-            &Argon2::default(),
+            &Argon2::new(
+                Algorithm::Argon2id,
+                Version::V0x13,
+                Params::new(1500, 2, 1, None).unwrap(),
+            ),
             self.password.as_bytes(),
             salt.as_salt(),
         )
