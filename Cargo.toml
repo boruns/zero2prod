@@ -45,6 +45,11 @@ thiserror = "2.0.17"
 anyhow = "1.0.51"
 base64 = "0.13.0"
 argon2 = { version = "0.5", features = ["std"] }
+urlencoding = "2"
+htmlescape = "0.3"
+hmac = { version = "0.12", features = ["std"] }
+sha2 = "0.10"
+hex = "0.4"
 
 [dev-dependencies]
 fake = "4.4.0"

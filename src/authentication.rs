@@ -25,7 +25,7 @@ pub async fn validate_credentials(
     pool: &PgPool,
 ) -> Result<uuid::Uuid, AuthError> {
     let mut user_id = None;
-    let mut expected_paassword_hash = SecretBox::new(
+    let mut expected_password_hash = SecretBox::new(
         Box::new(
             "$argon2id$v=19$m=19456,t=2,p=1$zATKil531Eh/DaM1sc9nwQ$1of3JB5MUB9X9B2uzLzxo43UInIydpirdS4r/TFB9xQ".to_string()
         )
@@ -35,15 +35,15 @@ pub async fn validate_credentials(
         get_stored_credentials(&credentials.username, pool).await?
     {
         user_id = Some(store_user_id);
-        expected_paassword_hash = store_hash;
+        expected_password_hash = store_hash;
     };
 
     // 阻塞任务
     let _ = spawn_blocking_with_tracing(move || {
-        verify_password_hash(expected_paassword_hash, credentials.password)
+        verify_password_hash(expected_password_hash, credentials.password)
     })
     .await
-    .context("Failed to span blocking tash")??;
+    .context("Failed to span blocking stash")??;
 
     // some 判断
     user_id

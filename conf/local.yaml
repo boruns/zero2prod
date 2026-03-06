@@ -2,6 +2,7 @@ application:
   host: 127.0.0.1
   port: 8081
   base_url: http://127.0.0.1
+  hmac_secret: 8EFy1b9esARlwULtJV46XQp0OWqifNoG
 database:
   username: postgres
   password: postgres
